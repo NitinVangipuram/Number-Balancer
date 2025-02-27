@@ -11,21 +11,29 @@
 
 <script setup>
 import {ref} from "vue"
+import { useRouter } from "vue-router";
 import { getAuth, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 
 const auth = getAuth()
 const email = ref("")
 const password = ref("")
+const router = useRouter()
 
-const register = () => {
-   createUserWithEmailAndPassword(auth, email.value, password.value)
-        .then((userCredential) => {
-         console.log("Successfully registered:", userCredential.user)
-        })
-        .catch((error) => {
-         console.log("Error registering:", error.message);
-        })
+const register = async () => {
+   try {
+    const userCredential = await createUserWithEmailAndPassword(auth, email.value, password.value);
+    const user = userCredential.user;
 
+    // 🔥 Store user role in Firestore (DEFAULT role: "user")
+    await setDoc(doc(db, "users", user.uid), {
+      role: "user", // Change to "admin" manually in Firestore for admin users
+      email: user.email,
+    });
+
+    router.push("/dashboard"); // Redirect to dashboard after signup
+  } catch (error) {
+    console.error("Signup failed:", error.message);
+  }
 }
 
 const signInWithGoogle = () => {
@@ -33,6 +41,7 @@ const signInWithGoogle = () => {
   signInWithPopup(auth, provider)
     .then((result) => {
       console.log("Google sign-in success:", result.user);
+      router.push("/dashboard");
     })
     .catch((error) => {
       console.error("Google sign-in error:", error.message);

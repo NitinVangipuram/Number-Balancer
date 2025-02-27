@@ -11,16 +11,19 @@
   
   <script setup>
   import { ref } from "vue";
-  import { getAuth, signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
-  
+  import { useRouter } from "vue-router";
+  import { getAuth, signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup} from "firebase/auth";
+
   const auth = getAuth();
   const email = ref("");
   const password = ref("");
+  const router = useRouter()
   
   const signIn = () => {
     signInWithEmailAndPassword(auth, email.value, password.value)
       .then((userCredential) => {
         console.log("Successfully signed in:", userCredential.user);
+        router.push("/dashboard")
       })
       .catch((error) => {
         console.error("Error signing in:", error.message);
@@ -32,6 +35,7 @@
     signInWithPopup(auth, provider)
       .then((result) => {
         console.log("Google sign-in success:", result.user);
+        router.push("/dashboard")
       })
       .catch((error) => {
         console.error("Google sign-in error:", error.message);
