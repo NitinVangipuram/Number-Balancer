@@ -4,6 +4,7 @@ import router from './router'
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { createPinia } from "pinia";
 import firebase from './firebase';
+import './index.css'
 
 
 const pinia = createPinia();  // ✅ Create Pinia instance
