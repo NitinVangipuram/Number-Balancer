@@ -8,7 +8,7 @@ const authStore = useAuthStore();
 const router = useRouter();
 
 // API base URL
-const API_BASE_URL = 'http://localhost:8000'; // Replace with your backend URL
+const API_BASE_URL = import.meta.env.VITE_ENDPOINT; // Replace with your backend URL
 
 // Game configuration data
 const levels = ref([]);

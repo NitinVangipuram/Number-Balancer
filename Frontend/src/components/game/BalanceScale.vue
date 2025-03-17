@@ -184,7 +184,7 @@ const feedbackClass = computed(() => {
 
 // Fetch levels from the API
 const fetchLevels = async () => {
-  const response = await axios.get("http://127.0.0.1:8000/game-configurations");
+  const response = await axios.get("https://number-balancer-l57g.vercel.app/game-configurations");
   levels.value = response.data;
 };
 

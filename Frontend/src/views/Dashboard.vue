@@ -61,7 +61,7 @@ const logout = async () => {
 const saveGameState = async (gameState: any) => {
   try {
     const token = await auth.currentUser.getIdToken();
-    await axios.post("http://127.0.0.1:8000/save-game", gameState, {
+    await axios.post("https://number-balancer-l57g.vercel.app/save-game", gameState, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
