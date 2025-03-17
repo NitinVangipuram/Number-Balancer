@@ -8,7 +8,7 @@ const authStore = useAuthStore();
 const router = useRouter();
 
 // API base URL
-const API_BASE_URL = import.meta.env.VITE_ENDPOINT; // Replace with your backend URL
+const API_BASE_URL = import.meta.env.VITE_ENDPOINT;
 
 // Game configuration data
 const levels = ref([]);
@@ -123,6 +123,7 @@ const saveLevel = async () => {
       await axios.put(`${API_BASE_URL}/game-configurations/${levelId}`, editingLevel.value);
     } else {
       // Add new level
+      console.log("Creating new level:", editingLevel.value);
       await axios.post(`${API_BASE_URL}/game-configurations/`, editingLevel.value);
     }
     await fetchGameConfigurations(); // Refresh the list
