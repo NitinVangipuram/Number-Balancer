@@ -7,8 +7,7 @@ import axios from 'axios';
 const authStore = useAuthStore();
 const router = useRouter();
 
-// API base URL
-const API_BASE_URL = import.meta.env.VITE_ENDPOINT;
+
 
 // Game configuration data
 const levels = ref([]);
@@ -120,11 +119,11 @@ const saveLevel = async () => {
     const levelId = editingLevel.value.id;
     if (levelId && levels.value.some(l => l.id.toString() === levelId.toString())) {
       // Update existing level
-      await axios.put(`${API_BASE_URL}/game-configurations/${levelId}`, editingLevel.value);
+      await axios.put(`https://number-balancer-l57g.vercel.app/game-configurations/${levelId}`, editingLevel.value);
     } else {
       // Add new level
       console.log("Creating new level:", editingLevel.value);
-      await axios.post(`${API_BASE_URL}/game-configurations/`, editingLevel.value);
+      await axios.post(`https://number-balancer-l57g.vercel.app/game-configurations/`, editingLevel.value);
     }
     await fetchGameConfigurations(); // Refresh the list
     cancelEdit();
@@ -137,7 +136,7 @@ const saveLevel = async () => {
 const deleteLevel = async (levelId) => {
   if (confirm("Are you sure you want to delete this level?")) {
     try {
-      await axios.delete(`${API_BASE_URL}/game-configurations/${levelId}`);
+      await axios.delete(`https://number-balancer-l57g.vercel.app/game-configurations/${levelId}`);
       await fetchGameConfigurations(); // Refresh the list
     } catch (error) {
       console.error("Error deleting level:", error.response?.data || error.message);
@@ -172,7 +171,7 @@ const toggleLevelEnabled = async (level) => {
   };
 
   try {
-    await axios.put(`${API_BASE_URL}/game-configurations/${level.id}`, apiLevel);
+    await axios.put(`https://number-balancer-l57g.vercel.app/game-configurations/${level.id}`, apiLevel);
     // Update the local state after successful API call
     level.enabled = !level.enabled;
   } catch (error) {
@@ -262,7 +261,7 @@ const resetToDefaults = () => {
 
 const fetchGameConfigurations = async () => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/game-configurations/`);
+    const response = await axios.get(`https://number-balancer-l57g.vercel.app/game-configurations/`);
     // Transform API data to the format expected by the frontend
     levels.value = response.data.map(item => {
       const difficulty = item.difficulty_levels[0] || {};
