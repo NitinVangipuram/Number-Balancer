@@ -15,7 +15,7 @@
       
       <!-- Balance Scale Game Component -->
       <div class="game-container">
-        <BalanceScale :settings="gameSettings" />
+        <BalanceScale :settings="gameSettings" @saveGame="saveGameState" />
       </div>
       
       <!-- Game Instructions -->
@@ -32,20 +32,15 @@ import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
 import BalanceScale from "../components/game/BalanceScale.vue";
+import axios from "axios";
 
 const auth = getAuth();
 const router = useRouter();
 const userEmail = ref("");
+const gameSettings = ref({ minTarget: 10, maxTarget: 100, numberOfAddends: 3 });
 
-// Game settings (fixed values, no UI controls)
-const gameSettings = ref({
-  minTarget: 10,
-  maxTarget: 100,
-  numberOfAddends: 3,
-});
-
-onMounted(() => {
-  onAuthStateChanged(auth, (user) => {
+onMounted(async () => {
+  onAuthStateChanged(auth, async (user) => {
     if (user) {
       userEmail.value = user.email || "User";
     } else {
@@ -60,6 +55,19 @@ const logout = async () => {
     router.push("/signin"); // Redirect to login after logout
   } catch (error: any) {
     console.error("Logout failed:", error.message);
+  }
+};
+
+const saveGameState = async (gameState: any) => {
+  try {
+    const token = await auth.currentUser.getIdToken();
+    await axios.post("http://127.0.0.1:8000/save-game", gameState, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  } catch (error) {
+    console.error("Failed to save game state:", error);
   }
 };
 </script>

@@ -1,65 +1,21 @@
 <script setup>
-import { useAuthStore } from "../store/authStore";
-import { useRouter } from "vue-router";
-import { onMounted, watch, ref, computed } from "vue";
+import { ref, computed, onMounted, watch } from 'vue';
+import { useAuthStore } from '../store/authStore';
+import { useRouter } from 'vue-router';
+import axios from 'axios';
 
 const authStore = useAuthStore();
 const router = useRouter();
 
-// Game configuration data
-const levels = ref([
-  { 
-    id: 1, 
-    name: "Level 1 - Beginner", 
-    minTarget: 5, 
-    maxTarget: 15, 
-    availableNumbers: [1, 2, 3, 4, 5],
-    timeLimit: 60, // seconds
-    enabled: true
-  },
-  { 
-    id: 2, 
-    name: "Level 2 - Easy", 
-    minTarget: 10, 
-    maxTarget: 25, 
-    availableNumbers: [1, 2, 3, 4, 5, 6, 7],
-    timeLimit: 45, // seconds
-    enabled: true
-  },
-  { 
-    id: 3, 
-    name: "Level 3 - Intermediate", 
-    minTarget: 15, 
-    maxTarget: 40, 
-    availableNumbers: [2, 4, 6, 8, 10, 12],
-    timeLimit: 40, // seconds
-    enabled: true
-  },
-  { 
-    id: 4, 
-    name: "Level 4 - Advanced", 
-    minTarget: 30, 
-    maxTarget: 60, 
-    availableNumbers: [5, 10, 15, 20, 25],
-    timeLimit: 30, // seconds
-    enabled: true
-  },
-  { 
-    id: 5, 
-    name: "Level 5 - Expert", 
-    minTarget: 50, 
-    maxTarget: 100, 
-    availableNumbers: [5, 7, 9, 11, 13, 17, 19],
-    timeLimit: 25, // seconds
-    enabled: false
-  }
-]);
+// API base URL
+const API_BASE_URL = 'http://localhost:8000'; // Replace with your backend URL
 
-// For creating/editing a level
+// Game configuration data
+const levels = ref([]);
 const editingLevel = ref(null);
 const isEditing = ref(false);
 const showAddNumbers = ref(false);
-const newNumberInput = ref("");
+const newNumberInput = ref('');
 
 // Game-wide settings
 const gameSettings = ref({
@@ -85,21 +41,55 @@ const nextLevelId = computed(() => {
   return levels.value.length > 0 ? Math.max(...levels.value.map(l => l.id)) + 1 : 1;
 });
 
-// Methods
-const startEditLevel = (level) => {
-  editingLevel.value = JSON.parse(JSON.stringify(level)); // Create a deep copy
+const createNewLevel = () => {
+  editingLevel.value = {
+    id: nextLevelId.value.toString(), // Convert to string for API
+    title: `Level ${nextLevelId.value}`,
+    description: "New level description",
+    created_by: authStore.user?.id || "admin",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    difficulty_levels: [
+      {
+        level_name: `Level ${nextLevelId.value}`,
+        target_min: 10,
+        target_max: 30,
+        addends: [{ min_value: 1, max_value: 10 }],
+        time_limit: 60,
+        hints_available: true
+      }
+    ],
+    starting_level: `Level ${nextLevelId.value}`,
+    public: false,
+    feedback_sensitivity: 1.0,
+    progression_criteria: {}
+  };
   isEditing.value = true;
 };
 
-const createNewLevel = () => {
+const startEditLevel = (level) => {
+  // Create a properly formatted editing level from the displayed level data
   editingLevel.value = {
-    id: nextLevelId.value,
-    name: `Level ${nextLevelId.value}`,
-    minTarget: 10,
-    maxTarget: 30,
-    availableNumbers: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-    timeLimit: 60,
-    enabled: true
+    id: level.id.toString(),
+    title: level.name,
+    description: level.description || `Level ${level.id} description`,
+    created_by: level.created_by || authStore.user?.id || "admin",
+    created_at: level.created_at || new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    difficulty_levels: [
+      {
+        level_name: level.name,
+        target_min: level.minTarget,
+        target_max: level.maxTarget,
+        addends: level.availableNumbers.map(num => ({ min_value: num, max_value: num })),
+        time_limit: level.timeLimit,
+        hints_available: true
+      }
+    ],
+    starting_level: level.name,
+    public: level.enabled,
+    feedback_sensitivity: 1.0,
+    progression_criteria: level.progression_criteria || {}
   };
   isEditing.value = true;
 };
@@ -111,153 +101,210 @@ const cancelEdit = () => {
   newNumberInput.value = "";
 };
 
-const saveLevel = () => {
-  if (!editingLevel.value.name || editingLevel.value.minTarget >= editingLevel.value.maxTarget) {
-    alert("Please ensure the level has a name and min target is less than max target");
+const saveLevel = async () => {
+  if (!editingLevel.value.title || 
+      !editingLevel.value.difficulty_levels[0] || 
+      editingLevel.value.difficulty_levels[0].target_min >= editingLevel.value.difficulty_levels[0].target_max) {
+    alert("Please ensure the level has a title and min target is less than max target");
     return;
   }
 
-  if (editingLevel.value.availableNumbers.length === 0) {
+  if (!editingLevel.value.difficulty_levels[0].addends || 
+      editingLevel.value.difficulty_levels[0].addends.length === 0) {
     alert("Please add at least one available number");
     return;
   }
 
-  const index = levels.value.findIndex(l => l.id === editingLevel.value.id);
-  if (index >= 0) {
-    // Update existing level
-    levels.value[index] = { ...editingLevel.value };
-  } else {
-    // Add new level
-    levels.value.push({ ...editingLevel.value });
+  try {
+    console.log("Sending data to backend:", editingLevel.value);
+    const levelId = editingLevel.value.id;
+    if (levelId && levels.value.some(l => l.id.toString() === levelId.toString())) {
+      // Update existing level
+      await axios.put(`${API_BASE_URL}/game-configurations/${levelId}`, editingLevel.value);
+    } else {
+      // Add new level
+      await axios.post(`${API_BASE_URL}/game-configurations/`, editingLevel.value);
+    }
+    await fetchGameConfigurations(); // Refresh the list
+    cancelEdit();
+  } catch (error) {
+    console.error("Error saving level:", error.response?.data || error.message);
+    alert("Failed to save level. Please check the console for details.");
   }
-
-  // Sort levels by ID
-  levels.value.sort((a, b) => a.id - b.id);
-  
-  saveChangesToStorage();
-  cancelEdit();
 };
 
-const deleteLevel = (levelId) => {
+const deleteLevel = async (levelId) => {
   if (confirm("Are you sure you want to delete this level?")) {
-    levels.value = levels.value.filter(level => level.id !== levelId);
-    saveChangesToStorage();
+    try {
+      await axios.delete(`${API_BASE_URL}/game-configurations/${levelId}`);
+      await fetchGameConfigurations(); // Refresh the list
+    } catch (error) {
+      console.error("Error deleting level:", error.response?.data || error.message);
+      alert("Failed to delete level. Please try again.");
+    }
   }
 };
 
-const toggleLevelEnabled = (level) => {
-  level.enabled = !level.enabled;
-  saveChangesToStorage();
+const toggleLevelEnabled = async (level) => {
+  // Create a proper API object from the displayed level
+  const apiLevel = {
+    id: level.id.toString(),
+    title: level.name,
+    description: level.description || `Level ${level.id} description`,
+    created_by: level.created_by || authStore.user?.id || "admin",
+    created_at: level.created_at || new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    difficulty_levels: [
+      {
+        level_name: level.name,
+        target_min: level.minTarget,
+        target_max: level.maxTarget,
+        addends: level.availableNumbers.map(num => ({ min_value: num, max_value: num })),
+        time_limit: level.timeLimit,
+        hints_available: true
+      }
+    ],
+    starting_level: level.name,
+    public: !level.enabled, // Toggle the enabled state
+    feedback_sensitivity: 1.0,
+    progression_criteria: level.progression_criteria || {}
+  };
+
+  try {
+    await axios.put(`${API_BASE_URL}/game-configurations/${level.id}`, apiLevel);
+    // Update the local state after successful API call
+    level.enabled = !level.enabled;
+  } catch (error) {
+    console.error("Error toggling level:", error.response?.data || error.message);
+    alert("Failed to toggle level. Please try again.");
+  }
 };
 
 const addNumberToLevel = () => {
   const num = parseInt(newNumberInput.value);
   if (!isNaN(num) && num > 0) {
-    if (!editingLevel.value.availableNumbers.includes(num)) {
-      editingLevel.value.availableNumbers.push(num);
-      editingLevel.value.availableNumbers.sort((a, b) => a - b);
+    // Initialize addends array if it doesn't exist
+    if (!editingLevel.value.difficulty_levels[0].addends) {
+      editingLevel.value.difficulty_levels[0].addends = [];
+    }
+    
+    // Check if the number already exists
+    if (!editingLevel.value.difficulty_levels[0].addends.some(addend => 
+        addend.min_value === num && addend.max_value === num)) {
+      editingLevel.value.difficulty_levels[0].addends.push({ min_value: num, max_value: num });
+      editingLevel.value.difficulty_levels[0].addends.sort((a, b) => a.min_value - b.min_value);
     }
     newNumberInput.value = "";
   }
 };
 
 const removeNumberFromLevel = (number) => {
-  editingLevel.value.availableNumbers = editingLevel.value.availableNumbers.filter(n => n !== number);
+  editingLevel.value.difficulty_levels[0].addends = 
+    editingLevel.value.difficulty_levels[0].addends.filter(addend => 
+      !(addend.min_value === number && addend.max_value === number));
 };
 
 const applyDifficultyPreset = (preset) => {
   if (!editingLevel.value) return;
-  
-  editingLevel.value.minTarget = preset.minTarget;
-  editingLevel.value.maxTarget = preset.maxTarget;
-  editingLevel.value.timeLimit = preset.timeLimit;
-  editingLevel.value.availableNumbers = [...preset.numbers];
-};
-
-const saveChangesToStorage = () => {
-  if (gameSettings.value.saveLevelsToStorage) {
-    localStorage.setItem('balanceGameLevels', JSON.stringify(levels.value));
-    localStorage.setItem('balanceGameSettings', JSON.stringify(gameSettings.value));
-  }
-};
-
-const loadFromStorage = () => {
-  const storedLevels = localStorage.getItem('balanceGameLevels');
-  const storedSettings = localStorage.getItem('balanceGameSettings');
-  
-  if (storedLevels) {
-    levels.value = JSON.parse(storedLevels);
-  }
-  
-  if (storedSettings) {
-    gameSettings.value = JSON.parse(storedSettings);
-  }
-};
-
-const resetToDefaults = () => {
-  if (confirm("Are you sure you want to reset all levels and settings to default values? This cannot be undone.")) {
-    localStorage.removeItem('balanceGameLevels');
-    localStorage.removeItem('balanceGameSettings');
-    // Reload the page to reset all values
-    window.location.reload();
-  }
+  editingLevel.value.difficulty_levels[0].target_min = preset.minTarget;
+  editingLevel.value.difficulty_levels[0].target_max = preset.maxTarget;
+  editingLevel.value.difficulty_levels[0].time_limit = preset.timeLimit;
+  editingLevel.value.difficulty_levels[0].addends = preset.numbers.map(num => ({ min_value: num, max_value: num }));
 };
 
 const exportConfig = () => {
-  const config = {
-    levels: levels.value,
-    settings: gameSettings.value,
-    exportDate: new Date().toISOString()
-  };
-  
-  const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `balance-game-config-${new Date().toISOString().split('T')[0]}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  const dataStr = JSON.stringify(levels.value, null, 2);
+  const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+  const exportFileDefaultName = 'balance-game-config.json';
+
+  const linkElement = document.createElement('a');
+  linkElement.setAttribute('href', dataUri);
+  linkElement.setAttribute('download', exportFileDefaultName);
+  linkElement.click();
 };
 
 const importConfig = (event) => {
   const file = event.target.files[0];
-  if (!file) return;
-  
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    try {
-      const config = JSON.parse(e.target.result);
-      if (config.levels && Array.isArray(config.levels)) {
-        levels.value = config.levels;
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const importedLevels = JSON.parse(e.target.result);
+        if (Array.isArray(importedLevels)) {
+          levels.value = importedLevels;
+          alert("Configuration imported successfully!");
+        } else {
+          alert("Invalid configuration format. Expected an array.");
+        }
+      } catch (error) {
+        console.error("Error parsing imported file:", error);
+        alert("Failed to import configuration. Invalid JSON format.");
       }
-      if (config.settings) {
-        gameSettings.value = config.settings;
-      }
-      saveChangesToStorage();
-      alert("Configuration imported successfully!");
-    } catch (error) {
-      alert("Error importing configuration: " + error.message);
-    }
-  };
-  reader.readAsText(file);
-  event.target.value = null; // Reset input
+    };
+    reader.readAsText(file);
+  }
+};
+
+const resetToDefaults = () => {
+  if (confirm("Are you sure you want to reset all settings to defaults? This cannot be undone.")) {
+    gameSettings.value = {
+      showTimer: true,
+      allowHints: true,
+      hintPenalty: 5,
+      soundEffects: true,
+      animationSpeed: "medium",
+      saveLevelsToStorage: true
+    };
+    alert("Settings reset to defaults.");
+  }
+};
+
+const fetchGameConfigurations = async () => {
+  try {
+    const response = await axios.get(`${API_BASE_URL}/game-configurations/`);
+    // Transform API data to the format expected by the frontend
+    levels.value = response.data.map(item => {
+      const difficulty = item.difficulty_levels[0] || {};
+      return {
+        id: item.id,
+        name: item.title,
+        description: item.description,
+        minTarget: difficulty.target_min || 0,
+        maxTarget: difficulty.target_max || 100,
+        timeLimit: difficulty.time_limit || 60,
+        // Extract available numbers from addends
+        availableNumbers: (difficulty.addends || [])
+          .map(addend => {
+            // If min_value equals max_value, it's a single number
+            if (addend.min_value === addend.max_value) return addend.min_value;
+            // Otherwise, return null and filter it out
+            return null;
+          })
+          .filter(num => num !== null),
+        enabled: item.public,
+        created_by: item.created_by,
+        created_at: item.created_at,
+        updated_at: item.updated_at,
+        progression_criteria: item.progression_criteria || {}
+      };
+    });
+  } catch (error) {
+    console.error("Error fetching game configurations:", error.response?.data || error.message);
+    alert("Failed to load game configurations. Please check the console for details.");
+  }
 };
 
 // Lifecycle hooks
 onMounted(async () => {
   try {
     await authStore.fetchUser(); // Ensure role is loaded before checking
-    console.log("User Role:", authStore.role); // Debugging Output
     if (!authStore.user || authStore.role !== "admin") {
-      router.push("/dashboard"); 
+      router.push("/dashboard");
     } else {
-      loadFromStorage();
+      await fetchGameConfigurations();
     }
   } catch (error) {
-    console.error("Error fetching user:", error);
+    console.error("Error fetching user:", error.response?.data || error.message);
   }
 });
 
@@ -267,11 +314,6 @@ watch(() => authStore.role, (newRole) => {
     router.push("/dashboard");
   }
 });
-
-// Save settings when they change
-watch(gameSettings, () => {
-  saveChangesToStorage();
-}, { deep: true });
 </script>
 
 <template>
@@ -324,17 +366,11 @@ watch(gameSettings, () => {
                   <td class="py-2 px-4">
                     <div class="flex flex-wrap gap-1">
                       <span 
-                        v-for="num in level.availableNumbers.slice(0, 5)" 
+                        v-for="num in level.availableNumbers"
                         :key="num" 
                         class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded"
                       >
                         {{ num }}
-                      </span>
-                      <span 
-                        v-if="level.availableNumbers.length > 5" 
-                        class="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded"
-                      >
-                        +{{ level.availableNumbers.length - 5 }} more
                       </span>
                     </div>
                   </td>
@@ -466,15 +502,24 @@ watch(gameSettings, () => {
         <div class="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-screen overflow-y-auto">
           <div class="p-6">
             <h2 class="text-xl font-bold mb-4">
-              {{ editingLevel.id ? `Edit Level: ${editingLevel.name}` : 'Create New Level' }}
+              {{ editingLevel && editingLevel.id ? `Edit Level: ${editingLevel.title}` : 'Create New Level' }}
             </h2>
             
             <div class="space-y-4">
               <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Level Id</label>
+                <input 
+                  type="text" 
+                  v-model="editingLevel.id" 
+                  class="w-full p-2 border rounded"
+                  placeholder="Level name"
+                >
+              </div>
+              <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Level Name</label>
                 <input 
                   type="text" 
-                  v-model="editingLevel.name" 
+                  v-model="editingLevel.title" 
                   class="w-full p-2 border rounded"
                   placeholder="Level name"
                 >
@@ -485,7 +530,7 @@ watch(gameSettings, () => {
                   <label class="block text-sm font-medium text-gray-700 mb-1">Min Target Value</label>
                   <input 
                     type="number" 
-                    v-model.number="editingLevel.minTarget" 
+                    v-model.number="editingLevel.difficulty_levels[0].target_min" 
                     min="1" 
                     class="w-full p-2 border rounded"
                   >
@@ -495,7 +540,7 @@ watch(gameSettings, () => {
                   <label class="block text-sm font-medium text-gray-700 mb-1">Max Target Value</label>
                   <input 
                     type="number" 
-                    v-model.number="editingLevel.maxTarget" 
+                    v-model.number="editingLevel.difficulty_levels[0].target_max" 
                     min="1" 
                     class="w-full p-2 border rounded"
                   >
@@ -506,7 +551,7 @@ watch(gameSettings, () => {
                 <label class="block text-sm font-medium text-gray-700 mb-1">Time Limit (seconds)</label>
                 <input 
                   type="number" 
-                  v-model.number="editingLevel.timeLimit" 
+                  v-model.number="editingLevel.difficulty_levels[0].time_limit" 
                   min="5" 
                   max="300"
                   class="w-full p-2 border rounded"
@@ -516,19 +561,7 @@ watch(gameSettings, () => {
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Available Numbers</label>
                 <div class="flex flex-wrap gap-2 p-2 border rounded bg-gray-50 min-h-12">
-                  <div 
-                    v-for="num in editingLevel.availableNumbers" 
-                    :key="num"
-                    class="flex items-center bg-blue-100 text-blue-800 px-2 py-1 rounded"
-                  >
-                    {{ num }}
-                    <button 
-                      @click="removeNumberFromLevel(num)" 
-                      class="ml-1 text-blue-500 hover:text-blue-700"
-                    >
-                      &times;
-                    </button>
-                  </div>
+                  
                   
                   <div v-if="!showAddNumbers" @click="showAddNumbers = true" class="cursor-pointer text-blue-500 px-2 py-1">
                     + Add Number
@@ -560,7 +593,7 @@ watch(gameSettings, () => {
               
               <div>
                 <label class="flex items-center space-x-2 cursor-pointer">
-                  <input type="checkbox" v-model="editingLevel.enabled" class="form-checkbox h-5 w-5 text-blue-600">
+                  <input type="checkbox" v-model="editingLevel.public" class="form-checkbox h-5 w-5 text-blue-600">
                   <span>Level Enabled</span>
                 </label>
               </div>
@@ -601,3 +634,7 @@ watch(gameSettings, () => {
     </div>
   </div>
 </template>
+
+<style scoped>
+/* Add your custom styles here */
+</style>

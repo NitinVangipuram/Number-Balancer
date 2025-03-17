@@ -1,5 +1,21 @@
 <template>
   <div class="flex flex-col items-center w-full max-w-4xl mx-auto p-4">
+    <!-- Level Selection -->
+    <div class="mt-4 mb-6">
+      <div class="text-lg font-semibold mb-2">Select Level:</div>
+      <div class="flex flex-wrap gap-2 justify-center">
+        <button 
+          v-for="level in levels" 
+          :key="level.id"
+          @click="selectLevel(level)"
+          class="w-32 h-12 rounded-md flex items-center justify-center text-xl font-bold transition bg-gray-200 hover:bg-gray-300 cursor-pointer"
+        >
+          {{ level.title }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Existing template content -->
     <div class="relative w-full h-[400px] mb-8">
       <!-- Fulcrum -->
       <div class="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-6 h-40 bg-slate-700"></div>
@@ -73,6 +89,14 @@
       </div>
     </div>
 
+    <!-- Timer Display -->
+    <div class="p-4 bg-gray-100 rounded-lg mb-4">
+      <div class="text-center">
+        <span class="text-lg">Time Remaining: </span>
+        <span class="text-2xl font-bold">{{ timeRemaining }}s</span>
+      </div>
+    </div>
+
     <!-- Feedback -->
     <FeedbackMessage 
       :message="feedbackMessage"
@@ -103,7 +127,7 @@ import { ref, onMounted, computed, watch } from 'vue';
 import ScaleBeam from './ScaleBeam.vue';
 import ScalePan from './ScalePan.vue';
 import FeedbackMessage from './FeedbackMessage.vue';
-
+import axios from "axios";
 const props = defineProps({
   settings: {
     type: Object,
@@ -117,6 +141,10 @@ const selectedBlocks = ref([]);
 const tiltAngle = ref(0);
 const isBalanced = ref(false);
 const feedbackMessage = ref('Add number blocks to reach the target!');
+const levels = ref([]);
+const selectedLevel = ref(null);
+const timeRemaining = ref(0);
+let timerInterval = null;
 
 // Available numbers to choose from (1-10)
 const availableNumbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -154,17 +182,32 @@ const feedbackClass = computed(() => {
   };
 });
 
+// Fetch levels from the API
+const fetchLevels = async () => {
+  const response = await axios.get("http://127.0.0.1:8000/game-configurations");
+  levels.value = response.data;
+};
+
+// Select a level
+const selectLevel = (level) => {
+  selectedLevel.value = level;
+  generateTarget();
+  startTimer();
+};
+
 // Generate a new target value within the min/max range
 const generateTarget = () => {
-  const min = props.settings.minTarget || 10;
-  const max = props.settings.maxTarget || 30; // Lower max for easier addition learning
-  target.value = Math.floor(Math.random() * (max - min + 1)) + min;
-  
-  // Reset selected blocks
-  selectedBlocks.value = [];
-  
-  // Reset tilt
-  calculateTilt();
+  if (selectedLevel.value) {
+    const min = selectedLevel.value.difficulty_levels[0].target_min || 10;
+    const max = selectedLevel.value.difficulty_levels[0].target_max || 30;
+    target.value = Math.floor(Math.random() * (max - min + 1)) + min;
+    
+    // Reset selected blocks
+    selectedBlocks.value = [];
+    
+    // Reset tilt
+    calculateTilt();
+  }
 };
 
 // Add a number block to the pan
@@ -214,6 +257,23 @@ const resetGame = () => {
   selectedBlocks.value = [];
   isBalanced.value = false;
   calculateTilt();
+  startTimer();
+};
+
+// Start the timer
+const startTimer = () => {
+  if (selectedLevel.value) {
+    timeRemaining.value = selectedLevel.value.difficulty_levels[0].time_limit || 60;
+    clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+      if (timeRemaining.value > 0) {
+        timeRemaining.value--;
+      } else {
+        clearInterval(timerInterval);
+        feedbackMessage.value = 'Time is up! Try again.';
+      }
+    }, 1000);
+  }
 };
 
 // Watch for changes in settings
@@ -223,6 +283,6 @@ watch(() => props.settings, () => {
 
 // Initialize the game on mount
 onMounted(() => {
-  generateTarget();
+  fetchLevels();
 });
 </script>
