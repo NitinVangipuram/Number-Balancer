@@ -9,7 +9,8 @@ import json
 from sqlalchemy import create_engine, Column, String, Integer, Boolean, Float, DateTime, JSON, MetaData, Table, select, insert, update, delete
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
-
+from dotenv import load_dotenv
+load_dotenv()
 # Initialize FastAPI app
 app = FastAPI(title="Balance Scale Addition Game API")
 
@@ -23,7 +24,7 @@ app.add_middleware(
 )
 
 # Set up Vercel Postgres database connection
-DATABASE_URL = os.environ.get("POSTGRES_URL", "postgresql://neondb_owner:npg_1ziL2jcwNrpI@ep-frosty-dawn-a57l5wo2-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require")
+DATABASE_URL = os.environ.get("POSTGRES_URL",os.environ.get("DATABASE_URL")) 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
