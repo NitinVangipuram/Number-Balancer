@@ -2,3 +2,8 @@ fastapi
 uvicorn
 pydantic
 firebase-admin
+sqlalchemy
+psycopg2-binary  # for sync PostgreSQL
+asyncpg  # for async PostgreSQL (optional)
+pydantic[dotenv]
+python-multipart
