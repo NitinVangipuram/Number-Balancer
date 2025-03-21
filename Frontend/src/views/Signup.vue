@@ -2,7 +2,7 @@
   <div class="signup-container">
     <div class="signup-card">
       <div class="logo-container">
-        <img src="https://lh3.googleusercontent.com/e2boQDN-lsDAQyBva7IyzPoPLfEgGVPQQ95GM4OW0MRIRH6Or9owQxJW_rL_lnrGvJOJQQquXjD9ZdbE5LMu9DU0iB4vASQbJaAw2Jw8raanPLS8dw1PQNkEFTi5eoJm3Q=w1280" alt="Logo" class="logo" />
+        <img src="../beach-ball_375219.png" alt="Logo" class="logo" />
       </div>
       <h1 class="title">Create an Account</h1>
       <p class="subtitle">Join us today and start your journey</p>
